@@ -15,37 +15,53 @@ use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\EntityRepository;
 use Doctrine\ORM\Mapping\ClassMetadataInfo;
 use Doctrine\ORM\Mapping\MappingException;
-use Symfony\Component\Serializer\Normalizer\ObjectNormalizer;
+use Symfony\Component\Serializer\Normalizer\AbstractNormalizer;
+use Symfony\Component\Serializer\Normalizer\DenormalizerInterface;
 
 /**
  * Handles denormalization of Doctrine entities
  *
  * @author Vincent Chalnot <vincent@sidus.fr>
  */
-class EntityNormalizer extends ObjectNormalizer
+class EntityNormalizer implements DenormalizerInterface
 {
+    /** @var DenormalizerInterface */
+    protected $baseDenormalizer;
+
     /** @var ManagerRegistry */
     protected $managerRegistry;
 
     /**
-     * @param ManagerRegistry $managerRegistry
+     * @param DenormalizerInterface $baseDenormalizer
+     * @param ManagerRegistry       $managerRegistry
      */
-    public function setManagerRegistry(ManagerRegistry $managerRegistry): void
+    public function __construct(DenormalizerInterface $baseDenormalizer, ManagerRegistry $managerRegistry)
     {
+        $this->baseDenormalizer = $baseDenormalizer;
         $this->managerRegistry = $managerRegistry;
     }
 
     /**
      * {@inheritdoc}
      */
-    protected function instantiateObject(
-        array &$data,
-        $class,
-        array &$context,
-        \ReflectionClass $reflectionClass,
-        $allowedAttributes,
-        string $format = null
-    ) {
+    public function denormalize($data, $class, $format = null, array $context = [])
+    {
+        $result = $this->findPersistedInstance($class, $data);
+        if ($result) {
+            $context[AbstractNormalizer::OBJECT_TO_POPULATE] = $result;
+        }
+
+        return $this->baseDenormalizer->denormalize($data, $class, $format, $context);
+    }
+
+    /**
+     * @param string $class
+     * @param mixed  $data
+     *
+     * @return object|null
+     */
+    protected function findPersistedInstance(string $class, $data)
+    {
         $entityManager = $this->managerRegistry->getManagerForClass($class);
         if (!$entityManager instanceof EntityManagerInterface) {
             throw new \UnexpectedValueException("No entity manager found for class {$class}");
@@ -53,6 +69,13 @@ class EntityNormalizer extends ObjectNormalizer
 
         // Test primary key(s)
         $classMetadata = $entityManager->getClassMetadata($class);
+        if (is_scalar($data)) {
+            return $entityManager->find($class, $data); // If data is scalar, tries to find it by primary identifier
+        }
+        if (!is_array($data)) {
+            return null; // Throw exception?
+        }
+
         $result = $this->findBy($entityManager, $class, $classMetadata->getIdentifierFieldNames(), $data);
         if ($result) {
             return $result;
@@ -67,14 +90,7 @@ class EntityNormalizer extends ObjectNormalizer
             }
         }
 
-        return parent::instantiateObject(
-            $data,
-            $class,
-            $context,
-            $reflectionClass,
-            $allowedAttributes,
-            $format
-        );
+        return null;
     }
 
     /**
@@ -82,7 +98,7 @@ class EntityNormalizer extends ObjectNormalizer
      */
     public function supportsDenormalization($data, $type, $format = null): bool
     {
-        return parent::supportsDenormalization($data, $type, $format) && $this->isManagedClass($type);
+        return $this->baseDenormalizer->supportsDenormalization($data, $type, $format) && $this->isManagedClass($type);
     }
 
     /**
@@ -133,6 +149,7 @@ class EntityNormalizer extends ObjectNormalizer
         if (!$repository instanceof EntityRepository) {
             throw new \UnexpectedValueException("No repository found for class {$class}");
         }
+
         return $repository->findOneBy($findByCriteria);
     }
 
@@ -144,7 +161,7 @@ class EntityNormalizer extends ObjectNormalizer
      */
     protected function resolveUniqueFields(ClassMetadataInfo $classMetadata, array $uniqueConstraint): array
     {
-        $uniqueFields= [];
+        $uniqueFields = [];
         foreach ($uniqueConstraint['columns'] ?? [] as $column) {
             try {
                 $uniqueFields[] = $classMetadata->getFieldForColumn($column);
