@@ -1,0 +1,28 @@
+{
+    "name": "sidus/doctrine-serializer-bundle",
+    "description": "Better serialization support for Doctrine entities out of the box",
+    "keywords": [
+        "symfony",
+        "doctrine",
+        "serializer"
+    ],
+    "homepage": "https://github.com/VincentChalnot/SidusDoctrineSerializerBundle",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Vincent Chalnot",
+            "email": "vincent@sidus.fr",
+            "homepage": "http://chalnot.fr",
+            "role": "Developer"
+        }
+    ],
+    "autoload": {
+        "psr-4": {
+            "Sidus\\DoctrineSerializerBundle\\": ""
+        }
+    },
+    "require": {
+        "php": ">=7.1"
+    }
+}

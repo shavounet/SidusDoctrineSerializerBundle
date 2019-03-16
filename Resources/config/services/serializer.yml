@@ -1,0 +1,7 @@
+services:
+    Sidus\DoctrineSerializerBundle\Serializer\EntityNormalizer:
+        parent: serializer.normalizer.object
+        calls:
+            - [setManagerRegistry, ['@doctrine']]
+        tags:
+            - { name: serializer.normalizer, priority: 2 }
