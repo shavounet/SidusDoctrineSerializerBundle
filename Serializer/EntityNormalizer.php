@@ -90,6 +90,16 @@ class EntityNormalizer implements DenormalizerInterface
             }
         }
 
+        // If unique constraint is not defined, it might be a unique column
+        foreach ($classMetadata->fieldMappings as $fieldMapping) {
+            if (array_key_exists('unique', $fieldMapping) && $fieldMapping['unique']) {
+                $result = $this->findBy($entityManager, $class, [$fieldMapping['fieldName']], $data);
+                if ($result) {
+                    return $result;
+                }
+            }
+        }
+
         return null;
     }
 
